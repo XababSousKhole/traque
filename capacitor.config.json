@@ -1,0 +1,19 @@
+{
+  "appId": "fr.traque.chasse",
+  "appName": "TRAQUE",
+  "webDir": "www",
+  "backgroundColor": "#07090d",
+  "android": {
+    "useLegacyBridge": true,
+    "backgroundColor": "#07090d"
+  },
+  "ios": {
+    "backgroundColor": "#07090d",
+    "contentInset": "never"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "iconColor": "#c6ff3d"
+    }
+  }
+}

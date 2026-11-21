@@ -1,0 +1,88 @@
+name: Compiler TRAQUE
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Appli Android (APK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npx cap sync android
+      - name: Compiler l'APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease --no-daemon
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+      - run: mv android/app/build/outputs/apk/release/app-release.apk TRAQUE-android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: TRAQUE-android.apk
+
+  ios:
+    name: Appli iPhone (IPA non signée)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - run: npm ci
+      - run: npx cap sync ios
+      - name: Compiler l'IPA
+        run: |
+          cd ios/App
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} build
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry ../../TRAQUE-iphone.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: TRAQUE-iphone.ipa
+
+  release:
+    name: Publier les fichiers
+    needs: [android, ios]
+    if: always() && (needs.android.result == 'success' || needs.ios.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: TRAQUE 1.0.${{ github.run_number }}
+          make_latest: true
+          files: out/*
+          body: |
+            📱 **Android** : télécharge `TRAQUE-android.apk` depuis ton téléphone et installe-le.
+            🍏 **iPhone** : `TRAQUE-iphone.ipa` s'installe avec Sideloadly depuis un PC (voir le README).
